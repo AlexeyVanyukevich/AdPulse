@@ -1,9 +1,10 @@
+/* Fixed and portalled to the body: `top` and `left` are set from the anchor's rect in
+   DatePicker.tsx, so the popover clears the sheet's scroll box and its sticky cells. */
 .popover {
-  position: absolute;
-  top: 100%;
+  position: fixed;
+  top: 0;
   left: 0;
-  z-index: 10;
-  margin-top: var(--space-1);
+  z-index: 100;
   padding: var(--space-3);
   background: var(--color-surface);
   border: 1px solid var(--color-border);

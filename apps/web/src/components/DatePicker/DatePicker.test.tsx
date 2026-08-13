@@ -1,18 +1,51 @@
+import { useState } from "react";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { DatePicker } from "./DatePicker.js";
 
 const labels = { dialog: "Choose a date", previousMonth: "Previous month", nextMonth: "Next month" };
 
-function setup(overrides: { onSelect?: (iso: string) => void; onClose?: () => void } = {}) {
-  return render(
-    <DatePicker
-      value="2026-08-03"
-      labels={labels}
-      onSelect={overrides.onSelect ?? (() => {})}
-      onClose={overrides.onClose ?? (() => {})}
-    />,
-  );
+interface Overrides {
+  value?: string;
+  rect?: Partial<DOMRect>;
+  onSelect?: (iso: string) => void;
+  onClose?: () => void;
+}
+
+/**
+ * Mirrors how the popover is really used: a trigger the picker anchors to, plus a
+ * neighbour outside both of them to click on.
+ */
+function setup(overrides: Overrides = {}) {
+  function Harness() {
+    // A callback ref in state, so the picker re-renders once the anchor exists.
+    const [anchor, setAnchor] = useState<HTMLButtonElement | null>(null);
+    return (
+      <>
+        <button
+          type="button"
+          ref={(node) => {
+            if (node != null && overrides.rect != null) {
+              node.getBoundingClientRect = () => overrides.rect as DOMRect;
+            }
+            setAnchor(node);
+          }}
+        >
+          trigger
+        </button>
+        <span>elsewhere</span>
+        <DatePicker
+          value={overrides.value ?? "2026-08-03"}
+          anchorTo={anchor}
+          labels={labels}
+          onSelect={overrides.onSelect ?? (() => {})}
+          onClose={overrides.onClose ?? (() => {})}
+        />
+      </>
+    );
+  }
+
+  return render(<Harness />);
 }
 
 describe("DatePicker", () => {
@@ -65,9 +98,7 @@ describe("DatePicker", () => {
   });
 
   it("follows the arrow keys into the next month", async () => {
-    render(
-      <DatePicker value="2026-08-31" labels={labels} onSelect={() => {}} onClose={() => {}} />,
-    );
+    setup({ value: "2026-08-31" });
 
     await userEvent.keyboard("{ArrowRight}");
 
@@ -91,5 +122,47 @@ describe("DatePicker", () => {
     await userEvent.keyboard("{Escape}");
 
     expect(onClose).toHaveBeenCalled();
+  });
+
+  it("renders outside its anchor's subtree, so no scroll container can clip it", () => {
+    const { container } = setup();
+
+    const popover = screen.getByRole("dialog", { name: "Choose a date" });
+    expect(container).not.toContainElement(popover);
+    expect(popover.parentElement).toBe(document.body);
+  });
+
+  it("pins itself under the anchor in viewport coordinates", () => {
+    setup({ rect: { top: 80, bottom: 100, left: 40, right: 140, width: 100, height: 20 } });
+
+    const popover = screen.getByRole("dialog", { name: "Choose a date" });
+    expect(popover).toHaveStyle({ position: "fixed", top: "104px", left: "40px" });
+  });
+
+  it("closes on a click outside the anchor and the popover", async () => {
+    const onClose = vi.fn();
+    setup({ onClose });
+
+    await userEvent.click(screen.getByText("elsewhere"));
+
+    expect(onClose).toHaveBeenCalled();
+  });
+
+  it("stays open when the calendar itself is clicked", async () => {
+    const onClose = vi.fn();
+    setup({ onClose });
+
+    await userEvent.click(screen.getByRole("button", { name: "Next month" }));
+
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it("leaves the trigger alone, so the click that toggles it cannot close and reopen it", async () => {
+    const onClose = vi.fn();
+    setup({ onClose });
+
+    await userEvent.click(screen.getByRole("button", { name: "trigger" }));
+
+    expect(onClose).not.toHaveBeenCalled();
   });
 });

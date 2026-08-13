@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import { DatePicker } from "../../../../components/DatePicker/DatePicker.js";
 import { formatDay } from "../../../../lib/format.js";
 import { ApiError } from "../../../../lib/http.js";
@@ -15,17 +15,9 @@ export interface SheetDateCellProps {
 export function SheetDateCell({ campaignId, recordId, date }: SheetDateCellProps) {
   const [open, setOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const anchor = useRef<HTMLSpanElement>(null);
+  // In state, not a ref: the picker needs a re-render once the trigger it anchors to exists.
+  const [trigger, setTrigger] = useState<HTMLButtonElement | null>(null);
   const update = useUpdateRecord(campaignId);
-
-  useEffect(() => {
-    if (!open) return;
-    function onPointerDown(event: MouseEvent) {
-      if (!anchor.current?.contains(event.target as Node)) setOpen(false);
-    }
-    document.addEventListener("mousedown", onPointerDown);
-    return () => document.removeEventListener("mousedown", onPointerDown);
-  }, [open]);
 
   async function select(iso: string) {
     setOpen(false);
@@ -39,9 +31,10 @@ export function SheetDateCell({ campaignId, recordId, date }: SheetDateCellProps
   }
 
   return (
-    <span ref={anchor} className={styles.anchor}>
+    <>
       <button
         type="button"
+        ref={setTrigger}
         className={styles.trigger}
         data-state={error != null ? "error" : undefined}
         title={error ?? undefined}
@@ -55,6 +48,7 @@ export function SheetDateCell({ campaignId, recordId, date }: SheetDateCellProps
       {open && (
         <DatePicker
           value={date}
+          anchorTo={trigger}
           labels={{
             dialog: t("sheet.date.choose"),
             previousMonth: t("sheet.date.previousMonth"),
@@ -64,6 +58,6 @@ export function SheetDateCell({ campaignId, recordId, date }: SheetDateCellProps
           onClose={() => setOpen(false)}
         />
       )}
-    </span>
+    </>
   );
 }
