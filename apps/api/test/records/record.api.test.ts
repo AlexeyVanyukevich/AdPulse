@@ -4,6 +4,8 @@ import { createApp } from "../../src/app.js";
 import { prisma } from "../../src/lib/prisma.js";
 import { resetDb } from "../helpers/db.js";
 import { createCampaign } from "../../src/campaigns/campaign.service.js";
+import { deleteRecord } from "../../src/records/record.service.js";
+import { NotFoundError } from "../../src/errors.js";
 import { signInAs } from "../helpers/auth.js";
 
 const app = createApp();
@@ -113,5 +115,13 @@ describe("Records API", () => {
     const res = await request(app).delete(`/api/records/${theirRecord.body.id}`).set(auth);
     expect(res.status).toBe(404);
     expect(await prisma.campaignRecord.count()).toBe(1);
+  });
+
+  // The service, not the route: the ownership filter lives here, and an HTTP
+  // test alone would stay green if it were moved somewhere else.
+  it("record.service hides another owner's record behind NotFoundError", async () => {
+    const created = await addDay("2026-07-21");
+    const { user: other } = await signInAs("Other");
+    await expect(deleteRecord(other.id, created.body.id)).rejects.toBeInstanceOf(NotFoundError);
   });
 });

@@ -32,6 +32,11 @@ describe("client.service", () => {
   it("getClient throws NotFoundError", async () => {
     await expect(getClient(ownerId, MISSING)).rejects.toBeInstanceOf(NotFoundError);
   });
+  it("hides another owner's client behind the same NotFoundError", async () => {
+    const client = await createClient(ownerId, { name: "Acme" });
+    const { user: other } = await signInAs("Other");
+    await expect(getClient(other.id, client.id)).rejects.toBeInstanceOf(NotFoundError);
+  });
   it("updates a client", async () => {
     const c = await createClient(ownerId, { name: "A" });
     const u = await updateClient(ownerId, c.id, { niche: "fitness" });

@@ -155,4 +155,10 @@ describe("property.service", () => {
       .rejects.toBeInstanceOf(NotFoundError);
     await expect(deleteProperty(ownerId, MISSING)).rejects.toBeInstanceOf(NotFoundError);
   });
+
+  it("hides another owner's property behind the same NotFoundError", async () => {
+    const { user: other } = await signInAs("Other");
+    await expect(updateProperty(other.id, propertyIdByKey.get("comment")!, { name: "MINE" }))
+      .rejects.toBeInstanceOf(NotFoundError);
+  });
 });

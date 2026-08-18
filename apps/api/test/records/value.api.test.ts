@@ -4,6 +4,8 @@ import { createApp } from "../../src/app.js";
 import { prisma } from "../../src/lib/prisma.js";
 import { resetDb } from "../helpers/db.js";
 import { createCampaign } from "../../src/campaigns/campaign.service.js";
+import { setPropertyValue } from "../../src/records/value.service.js";
+import { NotFoundError } from "../../src/errors.js";
 import { signInAs } from "../helpers/auth.js";
 
 const app = createApp();
@@ -134,5 +136,14 @@ describe("Property values API", () => {
     expect(await prisma.campaignPropertyValue.count({
       where: { recordId: theirRecord.body.id, propertyId: entered.id },
     })).toBe(0);
+  });
+
+  // The service, not the route: the ownership filter lives here, and an HTTP
+  // test alone would stay green if it were moved somewhere else.
+  it("value.service hides another owner's record behind NotFoundError", async () => {
+    const { user: other } = await signInAs("Other");
+    await expect(
+      setPropertyValue(other.id, recordId, propertyIdByKey.get("clicks")!, "1"),
+    ).rejects.toBeInstanceOf(NotFoundError);
   });
 });

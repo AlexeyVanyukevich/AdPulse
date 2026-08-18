@@ -1,4 +1,4 @@
-import type { User } from "@prisma/client";
+import { Prisma, type User } from "@prisma/client";
 import { prisma } from "../lib/prisma.js";
 import { config } from "../config.js";
 import { ConflictError, ForbiddenError, UnauthorizedError } from "../errors.js";
@@ -41,16 +41,25 @@ export async function register(input: RegisterInput): Promise<TokenPair> {
   if (input.inviteCode !== config.inviteCode) {
     throw new ForbiddenError("Invalid invite code");
   }
-  const existing = await prisma.user.findUnique({ where: { email: input.email } });
-  if (existing) throw new ConflictError("This email is already registered");
-
-  const user = await prisma.user.create({
-    data: {
-      name: input.name,
-      email: input.email,
-      passwordHash: await hashPassword(input.password),
-    },
-  });
+  // No pre-check: two simultaneous registrations of the same address would both
+  // pass it and both reach `create`, and the loser would surface a raw Prisma
+  // error instead of the 409 promised here. The unique constraint is the one
+  // arbiter that cannot be raced, so the conflict is read off its violation.
+  let user: User;
+  try {
+    user = await prisma.user.create({
+      data: {
+        name: input.name,
+        email: input.email,
+        passwordHash: await hashPassword(input.password),
+      },
+    });
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+      throw new ConflictError("This email is already registered");
+    }
+    throw error;
+  }
   return issueTokens(user);
 }
 

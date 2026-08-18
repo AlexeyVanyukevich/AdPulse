@@ -68,6 +68,12 @@ describe("campaign.service", () => {
     await expect(getCampaign(ownerId, MISSING)).rejects.toBeInstanceOf(NotFoundError);
   });
 
+  it("hides another owner's campaign behind the same NotFoundError", async () => {
+    const campaign = await createCampaign(ownerId, clientId, { name: "A" });
+    const { user: other } = await signInAs("Other");
+    await expect(getCampaign(other.id, campaign.id)).rejects.toBeInstanceOf(NotFoundError);
+  });
+
   it("renames a campaign", async () => {
     const campaign = await createCampaign(ownerId, clientId, { name: "A" });
     expect((await updateCampaign(ownerId, campaign.id, { name: "B" })).name).toBe("B");

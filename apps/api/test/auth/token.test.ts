@@ -1,10 +1,23 @@
 import { describe, it, expect } from "vitest";
+import { SignJWT } from "jose";
 import {
   signAccessToken, verifyAccessToken, generateRefreshToken,
   hashRefreshToken, refreshTokenExpiry,
 } from "../../src/auth/token.js";
+import { config } from "../../src/config.js";
 
 const claims = { sub: "user-1", name: "Buyer", email: "buyer@acme.com" };
+
+/** A correctly signed, unexpired token carrying only the claims given — the
+ * signature is genuine, so only the claim check can reject it. */
+function signWithClaims(payload: Record<string, string>, subject?: string): Promise<string> {
+  const jwt = new SignJWT(payload)
+    .setProtectedHeader({ alg: "HS256" })
+    .setIssuedAt()
+    .setExpirationTime("15m");
+  if (subject !== undefined) jwt.setSubject(subject);
+  return jwt.sign(new TextEncoder().encode(config.jwtSecret));
+}
 
 describe("access tokens", () => {
   it("round-trips its claims", async () => {
@@ -26,6 +39,24 @@ describe("access tokens", () => {
 
   it("rejects a token that is not a token at all", async () => {
     await expect(verifyAccessToken("nonsense")).rejects.toThrow();
+  });
+
+  // Without `sub` the caller has no id, and an undefined id makes every
+  // ownership filter match everything. The signature is valid here, so this
+  // is the only check standing between such a token and the whole database.
+  it("rejects a validly signed token with no sub claim", async () => {
+    const token = await signWithClaims({ name: claims.name, email: claims.email });
+    await expect(verifyAccessToken(token)).rejects.toThrow();
+  });
+
+  it("rejects a validly signed token with no name claim", async () => {
+    const token = await signWithClaims({ email: claims.email }, claims.sub);
+    await expect(verifyAccessToken(token)).rejects.toThrow();
+  });
+
+  it("rejects a validly signed token with no email claim", async () => {
+    const token = await signWithClaims({ name: claims.name }, claims.sub);
+    await expect(verifyAccessToken(token)).rejects.toThrow();
   });
 });
 
