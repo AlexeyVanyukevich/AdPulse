@@ -14,9 +14,10 @@ let auth: { Authorization: string };
 
 beforeEach(async () => {
   await resetDb();
-  ({ auth } = await signInAs());
-  const client = await prisma.client.create({ data: { name: "Acme" } });
-  campaignId = (await createCampaign(client.id, { name: "A" })).id;
+  const signedIn = await signInAs();
+  ({ auth } = signedIn);
+  const client = await prisma.client.create({ data: { name: "Acme", ownerId: signedIn.user.id } });
+  campaignId = (await createCampaign(signedIn.user.id, client.id, { name: "A" })).id;
 });
 afterAll(async () => { await prisma.$disconnect(); });
 
@@ -84,5 +85,33 @@ describe("Records API", () => {
     const res = await request(app).get(`/api/campaigns/${campaignId}`).set(auth);
     expect(res.body.records.map((record: { date: string }) => record.date))
       .toEqual(["2026-07-21", "2026-07-22"]);
+  });
+
+  it("POST /api/campaigns/:campaignId/records on another user's campaign -> 404", async () => {
+    const other = await signInAs("Other");
+    const theirClient = await request(app).post("/api/clients").set(other.auth)
+      .send({ name: "Theirs" });
+    const theirCampaigns = await request(app)
+      .get(`/api/clients/${theirClient.body.id}/campaigns`).set(other.auth);
+
+    const res = await request(app)
+      .post(`/api/campaigns/${theirCampaigns.body[0].id}/records`).set(auth)
+      .send({ date: "2026-08-13" });
+    expect(res.status).toBe(404);
+  });
+
+  it("DELETE /api/records/:id for another user's record -> 404 and keeps it", async () => {
+    const other = await signInAs("Other");
+    const theirClient = await request(app).post("/api/clients").set(other.auth)
+      .send({ name: "Theirs" });
+    const theirCampaigns = await request(app)
+      .get(`/api/clients/${theirClient.body.id}/campaigns`).set(other.auth);
+    const theirRecord = await request(app)
+      .post(`/api/campaigns/${theirCampaigns.body[0].id}/records`).set(other.auth)
+      .send({ date: "2026-08-13" });
+
+    const res = await request(app).delete(`/api/records/${theirRecord.body.id}`).set(auth);
+    expect(res.status).toBe(404);
+    expect(await prisma.campaignRecord.count()).toBe(1);
   });
 });

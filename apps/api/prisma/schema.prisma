@@ -16,7 +16,10 @@ model Client {
   createdAt     DateTime   @default(now()) @map("created_at")
   updatedAt     DateTime   @updatedAt @map("updated_at")
   campaigns     Campaign[]
+  ownerId       String     @map("owner_id")
+  owner         User       @relation(fields: [ownerId], references: [id], onDelete: Cascade)
 
+  @@index([ownerId, createdAt])
   @@map("client")
 }
 
@@ -92,6 +95,7 @@ model User {
   passwordHash  String         @map("password_hash")
   createdAt     DateTime       @default(now()) @map("created_at")
   refreshTokens RefreshToken[]
+  clients       Client[]
 
   @@map("app_user")
 }

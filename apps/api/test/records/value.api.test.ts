@@ -13,12 +13,15 @@ let campaignId: string;
 let recordId: string;
 let propertyIdByKey: Map<string | null, string>;
 let auth: { Authorization: string };
+let ownerId: string;
 
 beforeEach(async () => {
   await resetDb();
-  ({ auth } = await signInAs());
-  const client = await prisma.client.create({ data: { name: "Acme" } });
-  campaignId = (await createCampaign(client.id, { name: "A" })).id;
+  const signedIn = await signInAs();
+  ({ auth } = signedIn);
+  ownerId = signedIn.user.id;
+  const client = await prisma.client.create({ data: { name: "Acme", ownerId } });
+  campaignId = (await createCampaign(ownerId, client.id, { name: "A" })).id;
   const properties = await prisma.campaignProperty.findMany({ where: { campaignId } });
   propertyIdByKey = new Map(properties.map((property) => [property.key, property.id]));
   const record = await request(app)
@@ -95,13 +98,41 @@ describe("Property values API", () => {
   });
 
   it("returns 404 for a property of another campaign", async () => {
-    const client = await prisma.client.create({ data: { name: "Other" } });
-    const other = await createCampaign(client.id, { name: "B" });
+    const client = await prisma.client.create({ data: { name: "Other", ownerId } });
+    const other = await createCampaign(ownerId, client.id, { name: "B" });
     const foreign = await prisma.campaignProperty.findFirstOrThrow({
       where: { campaignId: other.id, key: "clicks" },
     });
     const res = await request(app)
       .put(`/api/records/${recordId}/values/${foreign.id}`).set(auth).send({ value: "1" });
     expect(res.status).toBe(404);
+  });
+
+  it("PUT /api/records/:recordId/values/:propertyId on another user's row -> 404", async () => {
+    const other = await signInAs("Other");
+    const theirClient = await request(app).post("/api/clients").set(other.auth)
+      .send({ name: "Theirs" });
+    const theirCampaigns = await request(app)
+      .get(`/api/clients/${theirClient.body.id}/campaigns`).set(other.auth);
+    const theirTable = await request(app)
+      .get(`/api/campaigns/${theirCampaigns.body[0].id}`).set(other.auth);
+    const theirRecord = await request(app)
+      .post(`/api/campaigns/${theirCampaigns.body[0].id}/records`).set(other.auth)
+      .send({ date: "2026-08-13" });
+    const entered = theirTable.body.properties.find(
+      (property: { formula: unknown }) => property.formula === null,
+    );
+
+    const res = await request(app)
+      .put(`/api/records/${theirRecord.body.id}/values/${entered.id}`).set(auth)
+      .send({ value: "100" });
+
+    expect(res.status).toBe(404);
+    // The pre-fix code answered 404 too — from a downstream campaign check, after
+    // it had already written the value. Only the absence of the row proves the
+    // request was stopped rather than merely reported as failed.
+    expect(await prisma.campaignPropertyValue.count({
+      where: { recordId: theirRecord.body.id, propertyId: entered.id },
+    })).toBe(0);
   });
 });

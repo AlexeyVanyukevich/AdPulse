@@ -56,4 +56,30 @@ describe("Clients API", () => {
     expect(res.body).toHaveLength(1);
     expect(res.body[0].name).toBe("Main");
   });
+  it("GET /api/clients only lists the caller's clients", async () => {
+    await request(app).post("/api/clients").set(auth).send({ name: "Mine" });
+    const other = await signInAs("Other");
+    await request(app).post("/api/clients").set(other.auth).send({ name: "Theirs" });
+
+    const res = await request(app).get("/api/clients").set(auth);
+    expect(res.status).toBe(200);
+    expect(res.body.map((client: { name: string }) => client.name)).toEqual(["Mine"]);
+  });
+
+  it("GET /api/clients/:id for another user's client -> 404", async () => {
+    const other = await signInAs("Other");
+    const theirs = await request(app).post("/api/clients").set(other.auth).send({ name: "Theirs" });
+
+    const res = await request(app).get(`/api/clients/${theirs.body.id}`).set(auth);
+    expect(res.status).toBe(404);
+  });
+
+  it("DELETE /api/clients/:id for another user's client -> 404 and keeps it", async () => {
+    const other = await signInAs("Other");
+    const theirs = await request(app).post("/api/clients").set(other.auth).send({ name: "Theirs" });
+
+    const res = await request(app).delete(`/api/clients/${theirs.body.id}`).set(auth);
+    expect(res.status).toBe(404);
+    expect(await prisma.client.count()).toBe(1);
+  });
 });

@@ -13,8 +13,9 @@ let auth: { Authorization: string };
 
 beforeEach(async () => {
   await resetDb();
-  ({ auth } = await signInAs());
-  const client = await prisma.client.create({ data: { name: "Acme" } });
+  const signedIn = await signInAs();
+  ({ auth } = signedIn);
+  const client = await prisma.client.create({ data: { name: "Acme", ownerId: signedIn.user.id } });
   clientId = client.id;
 });
 afterAll(async () => { await prisma.$disconnect(); });
@@ -73,5 +74,27 @@ describe("Campaigns API", () => {
       .post(`/api/clients/${clientId}/campaigns`).set(auth).send({ name: "A" });
     expect((await request(app).delete(`/api/campaigns/${created.body.id}`).set(auth)).status).toBe(204);
     expect(await prisma.campaign.count()).toBe(0);
+  });
+
+  it("GET /api/campaigns/:id for another user's campaign -> 404", async () => {
+    const other = await signInAs("Other");
+    const theirClient = await request(app).post("/api/clients").set(other.auth)
+      .send({ name: "Theirs" });
+    const theirCampaigns = await request(app)
+      .get(`/api/clients/${theirClient.body.id}/campaigns`).set(other.auth);
+
+    const res = await request(app)
+      .get(`/api/campaigns/${theirCampaigns.body[0].id}`).set(auth);
+    expect(res.status).toBe(404);
+  });
+
+  it("GET /api/clients/:clientId/campaigns for another user's client -> 404", async () => {
+    const other = await signInAs("Other");
+    const theirClient = await request(app).post("/api/clients").set(other.auth)
+      .send({ name: "Theirs" });
+
+    const res = await request(app)
+      .get(`/api/clients/${theirClient.body.id}/campaigns`).set(auth);
+    expect(res.status).toBe(404);
   });
 });
