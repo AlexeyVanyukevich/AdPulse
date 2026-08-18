@@ -4,21 +4,24 @@ import { createApp } from "../../src/app.js";
 import { prisma } from "../../src/lib/prisma.js";
 import { resetDb } from "../helpers/db.js";
 import { createCampaign } from "../../src/campaigns/campaign.service.js";
+import { signInAs } from "../helpers/auth.js";
 
 const app = createApp();
 const MISSING = "00000000-0000-0000-0000-000000000000";
 
 let campaignId: string;
+let auth: { Authorization: string };
 
 beforeEach(async () => {
   await resetDb();
+  ({ auth } = await signInAs());
   const client = await prisma.client.create({ data: { name: "Acme" } });
   campaignId = (await createCampaign(client.id, { name: "A" })).id;
 });
 afterAll(async () => { await prisma.$disconnect(); });
 
 function addDay(date: string) {
-  return request(app).post(`/api/campaigns/${campaignId}/records`).send({ date });
+  return request(app).post(`/api/campaigns/${campaignId}/records`).set(auth).send({ date });
 }
 
 describe("Records API", () => {
@@ -41,13 +44,13 @@ describe("Records API", () => {
 
   it("POST for a missing campaign -> 404", async () => {
     const res = await request(app)
-      .post(`/api/campaigns/${MISSING}/records`).send({ date: "2026-07-21" });
+      .post(`/api/campaigns/${MISSING}/records`).set(auth).send({ date: "2026-07-21" });
     expect(res.status).toBe(404);
   });
 
   it("PATCH /api/records/:id moves the day (200)", async () => {
     const created = await addDay("2026-07-21");
-    const res = await request(app).patch(`/api/records/${created.body.id}`).send({ date: "2026-07-22" });
+    const res = await request(app).patch(`/api/records/${created.body.id}`).set(auth).send({ date: "2026-07-22" });
     expect(res.status).toBe(200);
     expect(res.body.date).toBe("2026-07-22");
   });
@@ -55,7 +58,7 @@ describe("Records API", () => {
   it("PATCH onto an occupied date -> 409", async () => {
     const created = await addDay("2026-07-21");
     await addDay("2026-07-22");
-    const res = await request(app).patch(`/api/records/${created.body.id}`).send({ date: "2026-07-22" });
+    const res = await request(app).patch(`/api/records/${created.body.id}`).set(auth).send({ date: "2026-07-22" });
     expect(res.status).toBe(409);
   });
 
@@ -67,18 +70,18 @@ describe("Records API", () => {
     await prisma.campaignPropertyValue.create({
       data: { recordId: created.body.id, propertyId: property.id, numberValue: "10" },
     });
-    expect((await request(app).delete(`/api/records/${created.body.id}`)).status).toBe(204);
+    expect((await request(app).delete(`/api/records/${created.body.id}`).set(auth)).status).toBe(204);
     expect(await prisma.campaignPropertyValue.count()).toBe(0);
   });
 
   it("DELETE /api/records/:id for a missing id -> 404", async () => {
-    expect((await request(app).delete(`/api/records/${MISSING}`)).status).toBe(404);
+    expect((await request(app).delete(`/api/records/${MISSING}`).set(auth)).status).toBe(404);
   });
 
   it("returns records in the campaign payload ordered by date", async () => {
     await addDay("2026-07-22");
     await addDay("2026-07-21");
-    const res = await request(app).get(`/api/campaigns/${campaignId}`);
+    const res = await request(app).get(`/api/campaigns/${campaignId}`).set(auth);
     expect(res.body.records.map((record: { date: string }) => record.date))
       .toEqual(["2026-07-21", "2026-07-22"]);
   });

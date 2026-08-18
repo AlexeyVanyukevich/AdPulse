@@ -4,6 +4,7 @@ import { createApp } from "../../src/app.js";
 import { prisma } from "../../src/lib/prisma.js";
 import { resetDb } from "../helpers/db.js";
 import { createCampaign } from "../../src/campaigns/campaign.service.js";
+import { signInAs } from "../helpers/auth.js";
 
 const app = createApp();
 const MISSING = "00000000-0000-0000-0000-000000000000";
@@ -11,15 +12,17 @@ const MISSING = "00000000-0000-0000-0000-000000000000";
 let campaignId: string;
 let recordId: string;
 let propertyIdByKey: Map<string | null, string>;
+let auth: { Authorization: string };
 
 beforeEach(async () => {
   await resetDb();
+  ({ auth } = await signInAs());
   const client = await prisma.client.create({ data: { name: "Acme" } });
   campaignId = (await createCampaign(client.id, { name: "A" })).id;
   const properties = await prisma.campaignProperty.findMany({ where: { campaignId } });
   propertyIdByKey = new Map(properties.map((property) => [property.key, property.id]));
   const record = await request(app)
-    .post(`/api/campaigns/${campaignId}/records`).send({ date: "2026-07-21" });
+    .post(`/api/campaigns/${campaignId}/records`).set(auth).send({ date: "2026-07-21" });
   recordId = record.body.id;
 });
 afterAll(async () => { await prisma.$disconnect(); });
@@ -27,6 +30,7 @@ afterAll(async () => { await prisma.$disconnect(); });
 function setValue(propertyKey: string, value: unknown, targetRecordId = recordId) {
   return request(app)
     .put(`/api/records/${targetRecordId}/values/${propertyIdByKey.get(propertyKey)}`)
+    .set(auth)
     .send({ value });
 }
 
@@ -42,7 +46,7 @@ describe("Property values API", () => {
 
   it("round-trips a fractional value at full precision", async () => {
     await setValue("spend", "1234.5678");
-    const res = await request(app).get(`/api/campaigns/${campaignId}`);
+    const res = await request(app).get(`/api/campaigns/${campaignId}`).set(auth);
     const record = res.body.records.find((candidate: { id: string }) => candidate.id === recordId);
     expect(record.values[propertyIdByKey.get("spend")!]).toBe("1234.5678");
   });
@@ -97,7 +101,7 @@ describe("Property values API", () => {
       where: { campaignId: other.id, key: "clicks" },
     });
     const res = await request(app)
-      .put(`/api/records/${recordId}/values/${foreign.id}`).send({ value: "1" });
+      .put(`/api/records/${recordId}/values/${foreign.id}`).set(auth).send({ value: "1" });
     expect(res.status).toBe(404);
   });
 });
