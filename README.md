@@ -20,6 +20,12 @@ that already has data:
 - **Add the two new variables** to an existing `apps/api/.env` (and to the root `.env`
   if you run the stack from Compose): `JWT_SECRET` and `INVITE_CODE`. The API refuses
   to start without them, by design — see [Authentication](#authentication).
+- **Rebuild the api image _and_ renew its anonymous volumes.** This release adds the
+  `jose` dependency, and Compose mounts `/app/node_modules` as an anonymous volume that
+  survives recreation — so a rebuilt image alone stays masked by the old volume and the
+  container exits with `Cannot find package 'jose'`. Run
+  `docker compose up -d --build --renew-anon-volumes api`; the named `adpulse_pgdata`
+  volume is left untouched.
 
 ## Stack
 
