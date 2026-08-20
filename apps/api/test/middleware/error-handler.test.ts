@@ -3,8 +3,8 @@ import type { Request, Response, NextFunction } from "express";
 import { errorHandler } from "../../src/middleware/error-handler.js";
 import { NotFoundError, ServiceUnavailableError } from "../../src/errors.js";
 
-function mockRes(): Response {
-  const res = {} as Response;
+function mockRes(): Response & { headers: Record<string, string>; body?: unknown } {
+  const res = {} as Response & { headers: Record<string, string>; body?: unknown };
   res.statusCode = 200;
   res.headers = {} as Record<string, string>;
   res.status = vi.fn((code: number) => {
