@@ -16,11 +16,19 @@ afterAll(async () => { await prisma.$disconnect(); });
 
 describe("Auth rate limiting", () => {
   it("answers 429 after ten login attempts from one address", async () => {
+    // Pinned via X-Forwarded-For rather than left to connect unqualified: an
+    // unqualified request keys off a `localhost` lookup, which resolves
+    // through the same libuv threadpool scrypt hashing uses and can come back
+    // as either address family under load, splitting the ten attempts across
+    // two rate-limit buckets instead of filling one.
+    const address = "203.0.113.1";
     for (let i = 0; i < 10; i++) {
-      const res = await request(app).post("/api/auth/login").send(credentials);
+      const res = await request(app).post("/api/auth/login")
+        .set("X-Forwarded-For", address).send(credentials);
       expect(res.status).toBe(401);
     }
-    const res = await request(app).post("/api/auth/login").send(credentials);
+    const res = await request(app).post("/api/auth/login")
+      .set("X-Forwarded-For", address).send(credentials);
     expect(res.status).toBe(429);
     expect(res.body.error.message).toBe("Too many requests, try again later");
     expect(res.headers["retry-after"]).toBeDefined();
