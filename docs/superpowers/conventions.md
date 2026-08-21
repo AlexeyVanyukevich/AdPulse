@@ -29,6 +29,7 @@ analysis, and shareable public-link reports.
 | 8 | Sheet row management | [design](specs/2026-08-12-adpulse-sheet-editing-design.md) | [plan](plans/2026-08-12-adpulse-sheet-row-management.md) |
 | 9 | Authentication — backend | [design](specs/2026-08-13-adpulse-auth-design.md) | [plan](plans/2026-08-13-adpulse-auth-backend.md) |
 | 10 | Authentication — frontend | [design](specs/2026-08-13-adpulse-auth-design.md) | [plan](plans/2026-08-14-adpulse-auth-frontend.md) |
+| 11 | Production readiness + CI | [design](specs/2026-08-19-adpulse-production-readiness-design.md) | [plan](plans/2026-08-19-adpulse-production-readiness.md) |
 
 ## How we work
 
@@ -57,7 +58,10 @@ design docs.
 ## Testing
 
 - **Backend** tests need Postgres (`docker compose up -d db`) and use the separate
-  `adpulse_test` database; `pretest` applies migrations to it automatically. Run from
+  `adpulse_test` database. Each `npm test` invocation gets its own set of schemas
+  (`test_run_<id>_w<N>`, one per Vitest worker), created and migrated by
+  `test/global-setup.ts` before any worker starts and dropped again on teardown.
+  Two runs can therefore proceed at once without wiping each other's rows. Run from
   the repository root with `npm test`.
 - **Frontend** tests use Vitest + Testing Library + MSW and need no backend or
   database: `npm run test:web`.
