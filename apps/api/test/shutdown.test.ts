@@ -26,6 +26,39 @@ describe("createShutdown", () => {
     expect(d.exit).toHaveBeenCalledWith(1);
   });
 
+  it("does not begin disconnecting until the server has finished draining", async () => {
+    const disconnect = vi.fn(async () => {});
+    let disconnectStartedDuringDrain: boolean | undefined;
+    const server = {
+      close: vi.fn((cb: (error?: Error) => void) => {
+        setTimeout(() => {
+          disconnectStartedDuringDrain = disconnect.mock.calls.length > 0;
+          cb(undefined);
+        }, 10);
+      }),
+    };
+    await createShutdown({ server, disconnect, exit: vi.fn(), log: vi.fn() })("SIGTERM");
+    expect(disconnectStartedDuringDrain).toBe(false);
+  });
+
+  it("does not begin disconnecting until draining finishes, even on a close error", async () => {
+    const disconnect = vi.fn(async () => {});
+    let disconnectStartedDuringDrain: boolean | undefined;
+    const server = {
+      close: vi.fn((cb: (error?: Error) => void) => {
+        setTimeout(() => {
+          disconnectStartedDuringDrain = disconnect.mock.calls.length > 0;
+          cb(new Error("already closed"));
+        }, 10);
+      }),
+    };
+    const exit = vi.fn();
+    await createShutdown({ server, disconnect, exit, log: vi.fn() })("SIGTERM");
+    expect(disconnectStartedDuringDrain).toBe(false);
+    expect(disconnect).toHaveBeenCalled();
+    expect(exit).toHaveBeenCalledWith(1);
+  });
+
   it("ignores a second signal instead of exiting twice", async () => {
     const d = deps();
     const shutdown = createShutdown(d);
