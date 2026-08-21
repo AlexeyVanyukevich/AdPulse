@@ -15,6 +15,16 @@ export function createApp() {
   app.set("trust proxy", 1);
   app.use(express.json());
 
+  // Deliberately shallow. Render uses this path both to decide when a deploy
+  // goes live and to restart instances it judges unhealthy, so anything this
+  // endpoint depends on becomes something that can restart the application. A
+  // database check here would turn a Postgres hiccup into a restart loop that
+  // outlives the hiccup. Migrations run as a pre-deploy step against the real
+  // DATABASE_URL, which is what actually proves the database is reachable.
+  app.get("/healthz", (_req, res) => {
+    res.json({ status: "ok" });
+  });
+
   app.use("/api/auth", authRouter);
   // Everything below this line is closed, so a route added later is protected
   // by default rather than open until somebody remembers to guard it.
