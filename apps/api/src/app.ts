@@ -9,6 +9,10 @@ import { errorHandler } from "./middleware/error-handler.js";
 
 export function createApp() {
   const app = express();
+  // Exactly one proxy sits in front of this service in production. `true` would
+  // trust the whole X-Forwarded-For chain, letting any client prepend a forged
+  // address and hand itself a fresh rate-limit window per request.
+  app.set("trust proxy", 1);
   app.use(express.json());
 
   app.use("/api/auth", authRouter);
