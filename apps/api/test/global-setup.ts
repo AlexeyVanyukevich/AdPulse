@@ -34,17 +34,39 @@ config({ path: ".env.test", quiet: true, override: true });
 const require = createRequire(import.meta.url);
 const prismaCli = require.resolve("prisma/build/index.js");
 
+/** Legacy prefix from before this phase's run-scoped naming
+ * (test/workers.ts), fixed names with no embedded timestamp:
+ * `test_worker_1` .. `test_worker_4`. Any of those still around are
+ * unambiguously pre-phase leftovers, never a concurrent run's schemas, so
+ * they are dropped unconditionally rather than age-checked. */
+const LEGACY_SCHEMA_PREFIX = "test_worker_";
+
+/** Best-effort drop: a schema another process is concurrently dropping (or
+ * racing to create) must not fail setup for the whole run. */
+async function dropSchema(admin: PrismaClient, nspname: string): Promise<void> {
+  try {
+    await admin.$executeRawUnsafe(`DROP SCHEMA IF EXISTS "${nspname}" CASCADE`);
+  } catch (error) {
+    console.error(`[global-setup] failed to drop orphaned schema "${nspname}"`, error);
+  }
+}
+
 /** Drops schemas left behind by runs that were killed before teardown. A
  * concurrent run's schemas are young, so the age check leaves them alone. */
 async function sweepOrphanedSchemas(admin: PrismaClient): Promise<void> {
   const rows = await admin.$queryRaw<Array<{ nspname: string }>>`
-    SELECT nspname FROM pg_namespace WHERE nspname LIKE ${`${SCHEMA_PREFIX}%`}
+    SELECT nspname FROM pg_namespace
+    WHERE nspname LIKE ${`${SCHEMA_PREFIX}%`} OR nspname LIKE ${`${LEGACY_SCHEMA_PREFIX}%`}
   `;
   const cutoff = Date.now() - ORPHAN_SCHEMA_MAX_AGE_MS;
   for (const { nspname } of rows) {
+    if (nspname.startsWith(LEGACY_SCHEMA_PREFIX)) {
+      await dropSchema(admin, nspname);
+      continue;
+    }
     const createdAt = runIdCreatedAt(nspname.slice(SCHEMA_PREFIX.length));
     if (Number.isFinite(createdAt) && createdAt < cutoff) {
-      await admin.$executeRawUnsafe(`DROP SCHEMA IF EXISTS "${nspname}" CASCADE`);
+      await dropSchema(admin, nspname);
     }
   }
 }

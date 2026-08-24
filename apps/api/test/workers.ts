@@ -39,7 +39,10 @@ export function schemaNameForWorker(workerId: number, runId: string): string {
   return `test_run_${runId}_w${workerId}`;
 }
 
-/** Every schema this module has ever produced, for the orphan sweep. */
+/** Prefix for the schemas this module currently produces, for the orphan
+ * sweep. Schemas from before this phase used a different, fixed-name scheme
+ * (`test_worker_1` .. `test_worker_4`, no embedded timestamp) — see the
+ * unconditional cleanup for those in test/global-setup.ts. */
 export const SCHEMA_PREFIX = "test_run_";
 
 export function currentRunId(env: NodeJS.ProcessEnv = process.env): string {
