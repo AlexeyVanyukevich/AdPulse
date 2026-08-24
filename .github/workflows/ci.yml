@@ -14,6 +14,12 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
+# This is a public repository, so any stranger can open a pull request and run
+# these jobs. None of them needs to write anything, and a token that cannot
+# write is a token an injected dependency cannot misuse.
+permissions:
+  contents: read
+
 jobs:
   api:
     name: API tests
