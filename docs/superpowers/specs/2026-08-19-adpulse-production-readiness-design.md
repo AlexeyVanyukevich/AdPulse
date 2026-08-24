@@ -183,6 +183,9 @@ Two layers, because they stop different things.
 | `login`, `register` | 10 per 15 min per IP |
 | `refresh`, `logout` | 60 per 15 min per IP |
 
+`login` and `register` share a single `credentialLimit` instance — not one bucket each —
+so the ten attempts are pooled across both routes per IP.
+
 `refresh` gets the higher ceiling deliberately: a signed-in SPA renews every 15 minutes
 *per open tab*, so a user with several tabs is ordinary traffic.
 
@@ -348,3 +351,10 @@ first number to revisit if AdPulse grows a team.
 **The dev and production images diverge.** The production `Dockerfile` is new and Compose
 keeps its own. The Node bases are pinned together, but nothing forces the rest to stay in
 step, and a divergence surfaces only at deploy time.
+
+**The rate limiter counts a request before the handler runs.** `credentialLimit` sits
+ahead of `controller.login` in the middleware chain, so it increments on every request
+that reaches the route — including one the scrypt concurrency gate later sheds with a
+503. During a saturation spike, honest retries against `login` can exhaust the ten-attempt
+window entirely on 503s, with no password ever actually checked. Recorded here as a known
+trade-off, not fixed in this phase.

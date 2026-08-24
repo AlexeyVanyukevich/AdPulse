@@ -4,7 +4,7 @@
 
 **Goal:** Make `main` able to build a production image that serves the API and the built SPA from one process, protect the unauthenticated auth routes, and gate every pull request behind CI — with nothing yet published.
 
-**Architecture:** One Express process serves `/api` and the built SPA from a single origin, so there is no CORS layer. `/api/auth/*` is protected by two independent layers: a per-IP window at the HTTP edge, and a concurrency gate inside `password.ts` that bounds how many `scrypt` hashes may occupy the libuv threadpool at once. A multi-stage Debian-slim `Dockerfile` compiles both workspaces and runs `node dist/server.js`. GitHub Actions runs both suites, `tsc`, and the web production build on every pull request and every push to `main`.
+**Architecture:** One Express process serves `/api` and the built SPA from a single origin, so there is no CORS layer. `/api/auth/*` is protected by two independent layers: a per-IP window at the HTTP edge, and a concurrency gate inside `password.ts` that bounds how many `scrypt` hashes may occupy the libuv threadpool at once. A multi-stage Debian-slim `Dockerfile.prod`, joining the existing development `Dockerfile`, compiles both workspaces and runs `node dist/server.js`. GitHub Actions runs both suites, `tsc`, and the web production build on every pull request and every push to `main`.
 
 **Tech Stack:** TypeScript, Express 5, Prisma 6, PostgreSQL 16, Zod 4, Vitest + Supertest, Docker (multi-stage), GitHub Actions.
 
@@ -43,7 +43,8 @@
 | `apps/api/src/app.ts` | `trust proxy`, `/healthz`, `/api` 404, static, SPA fallback |
 | `apps/api/src/shutdown.ts` | Testable drain-then-disconnect handler (new) |
 | `apps/api/src/server.ts` | Wires the shutdown handler to `SIGTERM`/`SIGINT` |
-| `apps/api/Dockerfile` | Multi-stage production image (replaces the dev-only one) |
+| `apps/api/Dockerfile` | Development image, unchanged in shape (Compose, bind mounts, `npm run dev`) |
+| `apps/api/Dockerfile.prod` | Multi-stage production image, joining the dev one (new) |
 | `.github/workflows/ci.yml` | Three parallel jobs (new) |
 
 ---

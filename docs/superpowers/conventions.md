@@ -76,3 +76,7 @@ The full stack (Postgres + API + web) runs from one command; see
 - Postgres data lives in the named volume `adpulse_pgdata` and survives restarts. The
   `adpulse_test` database is a separate database in the same Postgres instance.
 - Host commands (Prisma, tests) use `localhost:5432`; containers use `db:5432`.
+- Two API images exist. The development `apps/api/Dockerfile` is what Compose builds:
+  bind mounts, `npm install`, `npm run dev`. `apps/api/Dockerfile.prod` is the separate
+  multi-stage production image: it compiles both workspaces and runs `node dist/server.js`
+  against no bind mounts.
