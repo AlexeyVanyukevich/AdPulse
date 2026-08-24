@@ -56,8 +56,11 @@ export function createRateLimit(options: RateLimitOptions): RateLimiter {
    *
    * Evicting rather than refusing is deliberate. Refusing new keys would let an
    * attacker fill the table and lock every genuine user out; admitting without
-   * a bound would let them exhaust memory. Evicting the soonest-to-expire
-   * window costs an attacker their own oldest counter first. */
+   * a bound would let them exhaust memory. The evicted window is the one
+   * nearest natural expiry anyway, so this is not targeted at anyone —
+   * whichever address it belongs to, legitimate or not, simply gets a fresh
+   * window a little early. Clearing a counter early can only ever grant a
+   * fresher window, never lock someone out. */
   function admit(now: number): void {
     if (windows.size < maxKeys) return;
     sweep(now);
