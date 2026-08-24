@@ -20,8 +20,16 @@ RUN apt-get update \
   && apt-get install -y --no-install-recommends openssl ca-certificates \
   && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
-COPY --from=deps /app/node_modules ./node_modules
-COPY package.json package-lock.json ./
+# The whole deps stage, not just the root node_modules: npm's workspace
+# install also nests per-workspace node_modules (apps/api/node_modules,
+# apps/web/node_modules) wherever a workspace's own dependency version
+# differs from the hoisted root one - here that's apps/web's pinned
+# typescript and vitest. .dockerignore excludes apps/*/node_modules from the
+# build context, so without this the web build would silently resolve tsc
+# and vitest/config from the root instead of the workspace's own pins. The
+# deps stage holds nothing but manifests and node_modules, so the source
+# COPYs below overwrite the manifests harmlessly.
+COPY --from=deps /app/ ./
 COPY apps/api ./apps/api
 COPY apps/web ./apps/web
 RUN npx prisma generate --schema apps/api/prisma/schema.prisma
