@@ -43,3 +43,7 @@ databases:
     region: frankfurt
     postgresMajorVersion: "16"
     databaseName: adpulse
+    # Internal-only: the web service and preDeployCommand both reach this over
+    # Render's private network, so nothing needs a public route in. Phase 13 may
+    # open this deliberately if offsite backups end up running from GitHub Actions.
+    ipAllowList: []
