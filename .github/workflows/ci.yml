@@ -89,3 +89,69 @@ jobs:
       - run: npx prisma generate --schema apps/api/prisma/schema.prisma
       - run: npm run build -w apps/api
       - run: npm run build -w @adpulse/web
+
+  image:
+    name: Production image
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: adpulse
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build the production image
+        run: docker build -f apps/api/Dockerfile.prod -t adpulse-api:ci .
+
+      # --network host throughout: a container started with `docker run` has its
+      # own loopback and cannot reach the service container via localhost.
+      - name: Apply migrations from inside the image
+        run: |
+          docker run --rm --network host \
+            -e DATABASE_URL="postgresql://postgres:postgres@localhost:5432/adpulse?schema=public" \
+            adpulse-api:ci npx --no-install prisma migrate deploy
+
+      - name: Start the image
+        run: |
+          docker run -d --name adpulse-ci --network host \
+            -e DATABASE_URL="postgresql://postgres:postgres@localhost:5432/adpulse?schema=public" \
+            -e JWT_SECRET="ci-image-check-secret-at-least-32-chars" \
+            -e INVITE_CODE="ci-image-check-invite" \
+            -e NODE_ENV=production \
+            -e PORT=3000 \
+            adpulse-api:ci
+          for i in $(seq 1 30); do
+            curl -fsS localhost:3000/healthz >/dev/null 2>&1 && break
+            sleep 1
+          done
+
+      - name: The process serves
+        run: |
+          test "$(curl -fsS localhost:3000/healthz)" = '{"status":"ok"}'
+
+      - name: The SPA fallback works from inside the image
+        run: |
+          test "$(curl -s -o /dev/null -w '%{http_code}' localhost:3000/login)" = "200"
+
+      - name: An unmatched API path returns the json envelope, not html
+        run: |
+          curl -s localhost:3000/api/does-not-exist | grep -q '"error"'
+
+      - name: Container logs on failure
+        if: failure()
+        run: docker logs adpulse-ci
+
+      - name: Clean up
+        if: always()
+        run: docker rm -f adpulse-ci || true
