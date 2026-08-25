@@ -21,7 +21,7 @@ services:
     # is healthy, so a migration on boot would alter the schema underneath code
     # that is still running. A failure here aborts the deploy and leaves the
     # old version serving.
-    preDeployCommand: npx prisma migrate deploy
+    preDeployCommand: npx --no-install prisma migrate deploy
     envVars:
       - key: NODE_ENV
         value: production
