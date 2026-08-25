@@ -146,6 +146,7 @@ jobs:
 
       - name: An unmatched API path returns the json envelope, not html
         run: |
+          test "$(curl -s -o /dev/null -w '%{http_code}' localhost:3000/api/does-not-exist)" = "404"
           curl -s localhost:3000/api/does-not-exist | grep -q '"error"'
 
       - name: Container logs on failure
