@@ -134,7 +134,7 @@ The deploy hook does not exist until the service does, so the order is fixed:
 ### Deploys after the first
 
 Auto-deploy is off. The `Trigger deploy` job in
-[ci.yml](.github/workflows/ci.yml) POSTs the hook after the test jobs pass, on pushes
+[ci.yml](.github/workflows/ci.yml) POSTs the hook after the checks pass, on pushes
 to `main` only. If a job fails spuriously, re-running it in the Actions UI also re-runs
 the deploy job. To ship when CI itself is broken, use Render's Manual Deploy button.
 

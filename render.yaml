@@ -1,7 +1,7 @@
 # The Blueprint Render syncs to create and update this project's resources.
 #
 # Auto-deploy is off on purpose: a job in .github/workflows/ci.yml POSTs the
-# service's deploy hook after the test jobs pass. Render's own `checksPass`
+# service's deploy hook after the checks pass. Render's own `checksPass`
 # trigger counts a skipped check as a pass, and a flaky red can strand a commit
 # with no way to re-trigger from CI.
 services:
