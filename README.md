@@ -139,8 +139,10 @@ Auto-deploy is off. The `Trigger deploy` job in
 to `main` only. If a job fails spuriously, re-running it in the Actions UI also re-runs
 the deploy job. To ship when CI itself is broken, use Render's Manual Deploy button.
 
-Migrations run as Render's pre-deploy command, `npx prisma migrate deploy`, inside the
-production image. A failure aborts the deploy and leaves the previous version serving.
+Migrations run as Render's pre-deploy command, `npx --no-install prisma migrate deploy`,
+inside the production image. A failure aborts the deploy and leaves the previous version
+serving. `--no-install` matters: without it, an image somehow missing the Prisma CLI would
+silently fetch a floating latest version from the network mid-deploy instead of failing.
 Because rolling deploys briefly run old and new code together, migrations must be
 backward-compatible with the version already running.
 

@@ -116,11 +116,26 @@ gated on the existing jobs.
     needs: [api, web, build, image]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
+    env:
+      HOOK: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
     steps:
-      - run: curl -fsS -X POST "$HOOK"
-        env:
-          HOOK: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
+      - name: POST the Render deploy hook
+        if: env.HOOK != ''
+        run: curl -fsS -X POST "$HOOK&ref=$GITHUB_SHA"
 ```
+
+**`env` is job-level, not step-level.** A step's own `env` block is not reliably visible to
+that same step's `if`, and the guard needs to read `HOOK` there.
+
+**The guard makes the job skip rather than fail.** Between merging `render.yaml` and
+creating the deploy-hook secret — steps 1 and 3 of the bootstrap below — `HOOK` expands to
+an empty string. Without `if: env.HOOK != ''`, `curl -fsS -X POST ""` exits non-zero and
+puts a red mark on `main` for a step nobody can act on yet.
+
+**`ref` pins the deploy to the commit CI checked.** A bare hook deploys the tracked
+branch's latest commit, so a second push landing before Render dequeues the first would
+build a commit whose checks never ran. Hook URLs already carry `?key=`, which is why the
+separator is `&`.
 
 **Why not `checksPass`.** The August brief chose Render's native `checksPass` trigger. Two
 things changed. First, a known ~3% suite flake means a red run is sometimes meaningless,
