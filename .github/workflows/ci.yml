@@ -155,3 +155,23 @@ jobs:
       - name: Clean up
         if: always()
         run: docker rm -f adpulse-ci || true
+
+  deploy:
+    # "Trigger" is literal: the hook returns as soon as Render accepts the
+    # request, while the build and release take minutes. A green job here means
+    # Render was asked, not that the new version is serving. Verifying the
+    # outcome needs the account-scoped Render API key and belongs with the
+    # rollback policy in a later phase.
+    name: Trigger deploy
+    needs: [api, web, build, image]
+    # Never on a pull request. The repository is public, so anyone can open one;
+    # GitHub withholds secrets from fork pull requests, but this makes the
+    # deploy structurally unreachable rather than dependent on that default.
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: POST the Render deploy hook
+        run: curl -fsS -X POST "$HOOK"
+        env:
+          HOOK: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
