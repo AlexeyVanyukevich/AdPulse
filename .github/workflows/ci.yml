@@ -146,7 +146,13 @@ jobs:
 
       - name: An unmatched API path returns the json envelope, not html
         run: |
-          test "$(curl -s -o /dev/null -w '%{http_code}' localhost:3000/api/does-not-exist)" = "404"
+          # Unauthenticated, so requireAuth (mounted on the whole /api prefix)
+          # closes the request before the catch-all 404 handler ever runs — the
+          # correct status here is 401, not 404 (see
+          # apps/api/test/spa.test.ts). Asserting the status, not just the
+          # body, matters because errorHandler emits the same `{"error":...}`
+          # envelope for a 500, so a broken app would otherwise still pass.
+          test "$(curl -s -o /dev/null -w '%{http_code}' localhost:3000/api/does-not-exist)" = "401"
           curl -s localhost:3000/api/does-not-exist | grep -q '"error"'
 
       # None of the checks above touch Prisma's query engine: /healthz is
