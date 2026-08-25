@@ -58,7 +58,7 @@ services:
     region: frankfurt
     plan: starter
     healthCheckPath: /healthz
-    autoDeployTrigger: off
+    autoDeployTrigger: "off"
     preDeployCommand: npx prisma migrate deploy
     envVars:
       - key: NODE_ENV
@@ -84,6 +84,9 @@ databases:
 both workspaces from the monorepo root. A context of `apps/api` fails at the first
 `COPY package.json`.
 
+**`autoDeployTrigger: "off"` is quoted deliberately** — YAML 1.1 parses the bare word
+`off` as boolean `false`, which Render's schema then rejects.
+
 **No `PORT` variable.** Render injects `PORT` (default 10000) and requires the process to
 bind `0.0.0.0`. [server.ts](../../../apps/api/src/server.ts) already reads
 `process.env.PORT`, and Express binds all interfaces by default, so no code changes. The
@@ -104,7 +107,7 @@ re-syncing cannot clobber a rotated secret and rotation stays a dashboard action
 
 ## The deploy path
 
-`autoDeployTrigger: off`. Deploys are triggered by a job in `.github/workflows/ci.yml`,
+`autoDeployTrigger: "off"`. Deploys are triggered by a job in `.github/workflows/ci.yml`,
 gated on the existing jobs.
 
 ```yaml
