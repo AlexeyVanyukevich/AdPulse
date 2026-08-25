@@ -1,11 +1,12 @@
 # AdPulse
 
-A media buyer's dashboard. This repository hosts the backend REST API; the React
-frontend will live alongside it in the same monorepo.
+A media buyer's dashboard. This repository hosts the backend REST API and, alongside
+it in the same monorepo, the React frontend.
 
-**Current phase:** Phase 9 — authentication and per-user data isolation. Every client
-now belongs to a user, and every `/api` route requires a bearer token. CSV import and
-AI analysis are deliberately out of scope for now.
+**Current phase:** Phase 12 — deployment to Render. Phase 11 made the repository
+deployable: a single production image serving both the API and the built SPA, with CI
+gating every push to `main`. CSV import and AI analysis are deliberately out of scope
+for now.
 
 ## Upgrading an existing checkout
 
