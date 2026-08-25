@@ -170,8 +170,16 @@ jobs:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    # Job-level, not step-level: a step's own `env` is not reliably visible to
+    # that same step's `if`, and the guard below needs to read HOOK there.
+    env:
+      HOOK: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
     steps:
+      # Before the operator creates RENDER_DEPLOY_HOOK_URL (see README's "First
+      # deploy"), HOOK is empty and this step is meant to skip, not fail — a
+      # failing job here would put a red X on main for a step nobody can act on
+      # yet. `ref` pins the deploy to the commit CI just checked, so a second
+      # push landing before Render dequeues this one can't get built instead.
       - name: POST the Render deploy hook
-        run: curl -fsS -X POST "$HOOK"
-        env:
-          HOOK: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
+        if: env.HOOK != ''
+        run: curl -fsS -X POST "$HOOK&ref=$GITHUB_SHA"
